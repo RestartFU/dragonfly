@@ -47,6 +47,9 @@ func (s *Session) addSpecificMetadata(e any, m protocol.EntityMetadata) {
 	if sn, ok := e.(sneaker); ok && sn.Sneaking() {
 		m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagSneaking)
 	}
+	if sr, ok := e.(shieldRaiser); ok && sr.ShieldRaised() {
+		m.SetFlag(protocol.EntityDataKeyFlagsTwo, protocol.EntityDataFlagBlocking&63)
+	}
 	if sp, ok := e.(sprinter); ok && sp.Sprinting() {
 		m.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagSprinting)
 	}
@@ -199,6 +202,10 @@ type crawler interface {
 
 type glider interface {
 	Gliding() bool
+}
+
+type shieldRaiser interface {
+	ShieldRaised() bool
 }
 
 type baby interface {

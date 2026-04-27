@@ -61,11 +61,13 @@ type playerData struct {
 	sleeping bool
 	sleepPos cube.Pos
 
-	usingSince time.Time
+	usingSince    time.Time
+	blockingSince time.Time
 
-	glideTicks   int64
-	fireTicks    int64
-	fallDistance float64
+	blockingDelayTicks int64
+	glideTicks         int64
+	fireTicks          int64
+	fallDistance       float64
 
 	breathing         bool
 	airSupplyTicks    int
@@ -117,6 +119,11 @@ type Player struct {
 	data   *world.EntityData
 	*playerData
 }
+
+const (
+	shieldActivationDelay = time.Second / 4
+	shieldDisableDuration = time.Second * 5
+)
 
 func (p *Player) H() *world.EntityHandle {
 	return p.handle
@@ -584,6 +591,9 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 		return 0, false
 	}
 	totalDamage := p.FinalDamageFrom(dmg, src)
+	if p.tryShieldBlock(dmg, src) {
+		return 0, false
+	}
 	damageLeft := totalDamage
 
 	immune := time.Now().Before(p.immuneUntil)
@@ -653,6 +663,106 @@ func (p *Player) Hurt(dmg float64, src world.DamageSource) (float64, bool) {
 		p.kill(src)
 	}
 	return totalDamage, true
+}
+
+// BlockAttack attempts to block the damage from src using the player's shield. It returns true if the attack
+// was blocked.
+func (p *Player) BlockAttack(dmg float64, src world.DamageSource) bool {
+	if dmg < 0 || p.Dead() || !p.GameMode().AllowsTakingDamage() {
+		return false
+	}
+	return p.tryShieldBlock(dmg, src)
+}
+
+// tryShieldBlock tries to block an attack with a shield. If the attack was blocked, true is returned.
+func (p *Player) tryShieldBlock(dmg float64, src world.DamageSource) bool {
+	if !p.shieldBlockableSource(src) {
+		return false
+	}
+	if _, blocking := p.Blocking(); !blocking || !p.shieldFacingSource(src) {
+		return false
+	}
+
+	p.tx.PlaySound(p.Position(), sound.ShieldBlock{})
+	p.damageShield(dmg)
+
+	if s, ok := src.(entity.AttackDamageSource); ok {
+		if l, ok := s.Attacker.(entity.Living); ok {
+			l.KnockBack(p.Position(), 0.5, 0.4)
+		}
+		if p.shieldDisabledBy(s.Attacker) {
+			p.SetBlockingDelay(shieldDisableDuration)
+			p.SetCooldown(item.Shield{}, shieldDisableDuration)
+		}
+	}
+	return true
+}
+
+// shieldBlockableSource checks if src can be blocked by a shield.
+func (p *Player) shieldBlockableSource(src world.DamageSource) bool {
+	if !src.ReducedByArmour() {
+		return false
+	}
+	switch src.(type) {
+	case entity.AttackDamageSource, entity.ProjectileDamageSource, entity.ExplosionDamageSource:
+		return true
+	default:
+		return false
+	}
+}
+
+// damageShield damages the shield that blocked an attack.
+func (p *Player) damageShield(dmg float64) {
+	if dmg < 3 {
+		return
+	}
+	damage := int(math.Ceil(dmg))
+	held, offHand := p.HeldItems()
+	if _, ok := held.Item().(item.Shield); ok {
+		p.SetHeldItems(p.damageItem(held, damage), offHand)
+		return
+	}
+	if _, ok := offHand.Item().(item.Shield); ok {
+		p.SetHeldItems(held, p.damageItem(offHand, damage))
+	}
+}
+
+// shieldFacingSource checks if src originated in front of the player's shield.
+func (p *Player) shieldFacingSource(src world.DamageSource) bool {
+	switch s := src.(type) {
+	case entity.AttackDamageSource:
+		return p.shieldFacingEntity(s.Attacker)
+	case entity.ProjectileDamageSource:
+		return p.shieldFacingEntity(s.Projectile)
+	default:
+		return true
+	}
+}
+
+// shieldFacingEntity checks if e is in front of the player's horizontal facing direction.
+func (p *Player) shieldFacingEntity(e world.Entity) bool {
+	if e == nil {
+		return true
+	}
+	diff := p.Position().Sub(e.Position())
+	diff[1] = 0
+	if mgl64.FloatEqualThreshold(diff.LenSqr(), 0, mgl64.Epsilon) {
+		return true
+	}
+	yaw := mgl64.DegToRad(p.Rotation().Yaw())
+	facing := mgl64.Vec3{-math.Sin(yaw), 0, math.Cos(yaw)}
+	return diff.Dot(facing) < 0
+}
+
+// shieldDisabledBy checks if an attacker should disable the player's shield.
+func (p *Player) shieldDisabledBy(attacker world.Entity) bool {
+	c, ok := attacker.(item.Carrier)
+	if !ok {
+		return false
+	}
+	held, _ := c.HeldItems()
+	_, ok = held.Item().(item.Axe)
+	return ok
 }
 
 // applyTotemEffects is an unexported function that is used to handle totem effects.
@@ -1042,6 +1152,7 @@ func (p *Player) StartSneaking() {
 		p.StopSprinting()
 	}
 	p.sneaking = true
+	p.blockingSince = time.Now()
 	p.updateState()
 }
 
@@ -1061,6 +1172,7 @@ func (p *Player) StopSneaking() {
 		return
 	}
 	p.sneaking = false
+	p.blockingSince = time.Time{}
 	p.updateState()
 }
 
@@ -1177,6 +1289,52 @@ func (p *Player) StopFlying() {
 	}
 	p.flying = false
 	p.session().SendGameMode(p)
+}
+
+// Blocking returns whether the player is holding a shield and whether it is actively blocking.
+func (p *Player) Blocking() (holding bool, blocking bool) {
+	holding = p.holdingShield()
+	if !p.ShieldRaised() {
+		return holding, false
+	}
+	if p.blockingSince.IsZero() || time.Since(p.blockingSince) < shieldActivationDelay {
+		return holding, false
+	}
+	return holding, true
+}
+
+// ShieldRaised returns true if the player is visually holding up a shield.
+func (p *Player) ShieldRaised() bool {
+	return p.holdingShield() && p.sneaking && !p.usingItem && p.BlockingDelay() <= 0
+}
+
+// holdingShield returns true if either hand holds a shield.
+func (p *Player) holdingShield() bool {
+	held, offHand := p.HeldItems()
+	_, heldShield := held.Item().(item.Shield)
+	_, offHandShield := offHand.Item().(item.Shield)
+	return heldShield || offHandShield
+}
+
+// BlockingDelay returns the remaining duration before the player can block with a shield again.
+func (p *Player) BlockingDelay() time.Duration {
+	return time.Duration(p.blockingDelayTicks) * time.Second / 20
+}
+
+// SetBlockingDelay updates the duration before the player can block with a shield again.
+func (p *Player) SetBlockingDelay(duration time.Duration) {
+	wasRaised := p.ShieldRaised()
+	ticks := int64(math.Ceil(duration.Seconds() * 20))
+	if duration > 0 && ticks <= p.blockingDelayTicks {
+		return
+	}
+	if ticks < 0 {
+		ticks = 0
+	}
+	p.blockingDelayTicks = ticks
+	if wasRaised != p.ShieldRaised() {
+		p.updateState()
+	}
 }
 
 // Jump makes the player jump if they are on ground. It exhausts the player by 0.05 food points, an additional 0.15
@@ -1377,8 +1535,19 @@ func (p *Player) HeldItems() (mainHand, offHand item.Stack) {
 // SetHeldItems sets items to the main hand and the off-hand of the player. The Stacks passed may be empty
 // (Stack.Empty()) to clear the held item.
 func (p *Player) SetHeldItems(mainHand, offHand item.Stack) {
+	wasRaised := p.ShieldRaised()
+	wasHolding := p.holdingShield()
 	_ = p.inv.SetItem(int(*p.heldSlot), mainHand)
 	_ = p.offHand.SetItem(0, offHand)
+	holding := p.holdingShield()
+	if !holding {
+		p.blockingSince = time.Time{}
+	} else if !wasHolding && p.sneaking {
+		p.blockingSince = time.Now()
+	}
+	if wasRaised != p.ShieldRaised() {
+		p.updateState()
+	}
 }
 
 // SetHeldSlot updates the held slot of the player to the slot provided. The
@@ -1402,8 +1571,19 @@ func (p *Player) SetHeldSlot(to int) error {
 		p.session().SendHeldSlot(from, p, true)
 		return nil
 	}
+	wasRaised := p.ShieldRaised()
+	wasHolding := p.holdingShield()
 	*p.heldSlot = uint32(to)
+	holding := p.holdingShield()
+	if !holding {
+		p.blockingSince = time.Time{}
+	} else if !wasHolding && p.sneaking {
+		p.blockingSince = time.Now()
+	}
 	p.usingItem = false
+	if wasRaised != p.ShieldRaised() {
+		p.updateState()
+	}
 
 	for _, viewer := range p.viewers() {
 		viewer.ViewEntityItems(p)
@@ -1577,7 +1757,11 @@ func (p *Player) UseItem() {
 // the item started being used.
 func (p *Player) ReleaseItem() {
 	if !p.usingItem || !p.canRelease() || !p.GameMode().AllowsInteraction() {
+		wasUsing := p.usingItem
 		p.usingItem = false
+		if wasUsing {
+			p.updateState()
+		}
 		return
 	}
 	p.usingItem = false
@@ -2536,6 +2720,13 @@ func (p *Player) Tick(tx *world.Tx, current int64) {
 			p.Hurt(1, block.FireDamageSource{})
 		}
 	}
+	if p.blockingDelayTicks > 0 {
+		wasRaised := p.ShieldRaised()
+		p.blockingDelayTicks--
+		if wasRaised != p.ShieldRaised() {
+			p.updateState()
+		}
+	}
 
 	held, _ := p.HeldItems()
 	if current%4 == 0 && p.usingItem {
@@ -2984,6 +3175,15 @@ func (p *Player) Breathing() bool {
 func (p *Player) SwingArm() {
 	if p.Dead() {
 		return
+	}
+	duration := time.Millisecond * 300
+	if e, ok := p.Effect(effect.Haste); ok {
+		duration -= time.Duration(e.Level()) * time.Millisecond * 50
+	} else if e, ok := p.Effect(effect.MiningFatigue); ok {
+		duration += time.Duration(e.Level()*2) * time.Millisecond * 50
+	}
+	if duration > 0 {
+		p.SetBlockingDelay(duration)
 	}
 	for _, v := range p.viewers() {
 		v.ViewEntityAction(p, entity.SwingArmAction{})

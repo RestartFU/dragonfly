@@ -169,7 +169,14 @@ func (lt *ProjectileBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 	switch r := result.(type) {
 	case trace.EntityResult:
 		if l, ok := r.Entity().(Living); ok && lt.conf.Damage >= 0 {
-			lt.hitEntity(l, e, vel)
+			dmg, src := lt.damage(vel), lt.damageSource(e)
+			if b, ok := l.(blocker); ok && b.BlockAttack(dmg, src) {
+				m.vel = vel.Mul(-0.25)
+				m.dvel = m.vel.Sub(vel)
+				lt.close = false
+				return m
+			}
+			lt.hitEntity(l, e, vel, dmg, src)
 		}
 	case trace.BlockResult:
 		bpos := r.BlockPosition()
@@ -254,16 +261,28 @@ func (lt *ProjectileBehaviour) hitBlockSurviving(e *Ent, r trace.BlockResult, m 
 	}
 }
 
-// hitEntity is called when a projectile hits a Living. It deals damage to the
-// entity and knocks it back. Additionally, it applies any potion effects and
-// fire if applicable.
-func (lt *ProjectileBehaviour) hitEntity(l Living, e *Ent, vel mgl64.Vec3) {
-	owner, _ := lt.conf.Owner.Entity(e.tx)
-	src := ProjectileDamageSource{Projectile: e, Owner: owner}
+// damage returns the damage dealt by the projectile at its current velocity.
+func (lt *ProjectileBehaviour) damage(vel mgl64.Vec3) float64 {
 	dmg := math.Ceil(lt.conf.Damage * vel.Len())
 	if lt.conf.Critical {
 		dmg += rand.Float64() * dmg / 2
 	}
+	return dmg
+}
+
+// damageSource returns the DamageSource used by the projectile.
+func (lt *ProjectileBehaviour) damageSource(e *Ent) ProjectileDamageSource {
+	var owner world.Entity
+	if lt.conf.Owner != nil {
+		owner, _ = lt.conf.Owner.Entity(e.tx)
+	}
+	return ProjectileDamageSource{Projectile: e, Owner: owner}
+}
+
+// hitEntity is called when a projectile hits a Living. It deals damage to the
+// entity and knocks it back. Additionally, it applies any potion effects and
+// fire if applicable.
+func (lt *ProjectileBehaviour) hitEntity(l Living, e *Ent, vel mgl64.Vec3, dmg float64, src ProjectileDamageSource) {
 	if _, vulnerable := l.Hurt(dmg, src); vulnerable {
 		l.KnockBack(l.Position().Sub(vel), 0.45+lt.conf.KnockBackForceAddend, 0.3608+lt.conf.KnockBackHeightAddend)
 
@@ -278,6 +297,11 @@ func (lt *ProjectileBehaviour) hitEntity(l Living, e *Ent, vel mgl64.Vec3) {
 			flammable.SetOnFire(time.Second * 5)
 		}
 	}
+}
+
+// blocker represents an entity that can block projectile attacks with a shield.
+type blocker interface {
+	BlockAttack(dmg float64, src world.DamageSource) bool
 }
 
 // tickMovement ticks the movement of a projectile. It updates the position and
