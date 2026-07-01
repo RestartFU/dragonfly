@@ -2097,9 +2097,9 @@ func (p *Player) BreakBlock(pos cube.Pos) {
 	}
 
 	p.Exhaust(0.005)
-	// An instant break costs no durability. The real break context is used so a block that is only instant
-	// on land still costs durability when the break was slowed underwater or in the air.
-	if block.BreakDuration(b, held, p.breakContext()) == 0 {
+	// Only blocks that naturally break instantly (zero hardness) cost no durability; a block made to break
+	// within one tick by a fast tool or status effects still consumes durability.
+	if block.BreaksInstantly(b) {
 		return
 	}
 	if durable, ok := held.Item().(item.Durable); ok {

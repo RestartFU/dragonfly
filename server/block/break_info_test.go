@@ -100,46 +100,33 @@ func TestBreakDuration(t *testing.T) {
 	}
 }
 
-// TestBreaksInstantly verifies that BreaksInstantly reports an instant break both for zero-hardness blocks
-// and for positive-hardness blocks that the item breaks within a single tick.
+// TestBreaksInstantly verifies that BreaksInstantly reports an instant break only for zero-hardness blocks,
+// not for positive-hardness blocks that merely break within one tick due to a fast tool.
 func TestBreaksInstantly(t *testing.T) {
-	diamondPick := item.NewStack(item.Pickaxe{Tier: item.ToolTierDiamond}, 1)
-	efficiencyDiamondPick := diamondPick.WithEnchantments(item.NewEnchantment(enchantment.Efficiency, 3))
-
 	tests := []struct {
 		name  string
 		block world.Block
-		stack item.Stack
 		want  bool
 	}{
 		{
-			name:  "zero-hardness block breaks instantly with anything",
+			name:  "zero-hardness block breaks instantly",
 			block: block.ShortGrass{},
-			stack: item.Stack{},
 			want:  true,
 		},
 		{
-			name:  "soft block breaks instantly with an efficiency tool",
+			name:  "positive-hardness block does not break instantly",
 			block: block.Netherrack{},
-			stack: efficiencyDiamondPick,
-			want:  true,
-		},
-		{
-			name:  "soft block does not break instantly by hand",
-			block: block.Netherrack{},
-			stack: item.Stack{},
 			want:  false,
 		},
 		{
-			name:  "stone does not break instantly with a diamond pickaxe",
+			name:  "stone does not break instantly",
 			block: block.Stone{},
-			stack: diamondPick,
 			want:  false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, block.BreaksInstantly(tt.block, tt.stack))
+			require.Equal(t, tt.want, block.BreaksInstantly(tt.block))
 		})
 	}
 }

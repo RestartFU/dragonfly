@@ -33,7 +33,7 @@ type BreakContext struct {
 	ConduitPowerLevel int
 	// MiningFatigueLevel is the level of the Mining Fatigue effect (0 if absent).
 	MiningFatigueLevel int
-	// Underwater is true if the player's head is submerged in water, which slows mining fivefold unless
+	// Underwater is true if the player's head is submerged in water, which slows mining by 5x unless
 	// negated by AquaAffinity.
 	Underwater bool
 	// AquaAffinity is true if the player wears a helmet enchanted with Aqua Affinity, negating the
@@ -108,10 +108,12 @@ func BreakDuration(b world.Block, i item.Stack, ctx BreakContext) time.Duration 
 	return time.Duration(math.Ceil(1/damage)) * time.Second / 20
 }
 
-// BreaksInstantly checks if the block passed can be broken instantly using the item stack passed to break
-// it, without any status effects.
-func BreaksInstantly(b world.Block, i item.Stack) bool {
-	return BreakDuration(b, i, BreakContext{}) == 0
+// BreaksInstantly checks if the block passed breaks instantly, that is, it has zero hardness and so is
+// mined in a single tick with any item and without consuming tool durability. This is distinct from a
+// block that only breaks within one tick because of a high-speed tool or status effects.
+func BreaksInstantly(b world.Block) bool {
+	breakable, ok := b.(Breakable)
+	return ok && breakable.BreakInfo().Hardness <= 0
 }
 
 // BreakInfo is a struct returned by every block. It holds information on block breaking related data, such as
