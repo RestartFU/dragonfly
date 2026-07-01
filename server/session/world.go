@@ -484,6 +484,11 @@ func (s *Session) ViewParticle(pos mgl64.Vec3, p world.Particle) {
 			EventType: packet.LevelEventParticleLegacyEvent | 88,
 			Position:  vec64To32(pos),
 		})
+	case particle.WindExplosion:
+		s.writePacket(&packet.LevelEvent{
+			EventType: packet.LevelEventParticlesWindExplosion,
+			Position:  vec64To32(pos),
+		})
 	}
 }
 
@@ -653,6 +658,8 @@ func (s *Session) playSound(pos mgl64.Vec3, t world.Sound, disableRelative bool)
 		case sound.Dream():
 			pk.SoundType = packet.SoundEventGoatCall7
 		}
+	case sound.WindChargeBurst:
+		pk.SoundType = packet.SoundEventWindChargeBurst
 	case sound.FireExtinguish:
 		pk.SoundType = packet.SoundEventExtinguishFire
 	case sound.Ignite:
@@ -716,6 +723,10 @@ func (s *Session) playSound(pos mgl64.Vec3, t world.Sound, disableRelative bool)
 		pk.SoundType = packet.SoundEventBarrelClose
 	case sound.BarrelOpen:
 		pk.SoundType = packet.SoundEventBarrelOpen
+	case sound.ShulkerBoxClose:
+		pk.SoundType = packet.SoundEventShulkerBoxClosed
+	case sound.ShulkerBoxOpen:
+		pk.SoundType = packet.SoundEventShulkerBoxOpen
 	case sound.BlockBreaking:
 		pk.SoundType, pk.ExtraData = packet.SoundEventHit, int32(s.br.BlockRuntimeID(so.Block))
 	case sound.ItemBreak:
@@ -1259,6 +1270,10 @@ func (s *Session) ViewBlockAction(pos cube.Pos, a world.BlockAction) {
 			EventType: packet.BlockEventChangeChestState,
 		})
 	case block.StartCrackAction:
+		if t.BreakTime <= 0 {
+			// An instant break has no cracking to animate, and encoding the crack speed would divide by zero.
+			break
+		}
 		s.writePacket(&packet.LevelEvent{
 			EventType: packet.LevelEventStartBlockCracking,
 			Position:  vec64To32(pos.Vec3()),
@@ -1271,6 +1286,9 @@ func (s *Session) ViewBlockAction(pos cube.Pos, a world.BlockAction) {
 			EventData: 0,
 		})
 	case block.ContinueCrackAction:
+		if t.BreakTime <= 0 {
+			break
+		}
 		s.writePacket(&packet.LevelEvent{
 			EventType: packet.LevelEventUpdateBlockCracking,
 			Position:  vec64To32(pos.Vec3()),
