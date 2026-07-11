@@ -12,10 +12,11 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/sandertv/gophertunnel v1.57.0
 	github.com/segmentio/fasthash v1.0.3
+	go.uber.org/mock v0.6.0
 	golang.org/x/exp v0.0.0-20250103183323-7d7fa50e5329
-	golang.org/x/mod v0.22.0
-	golang.org/x/text v0.23.0
-	golang.org/x/tools v0.28.0
+	golang.org/x/mod v0.27.0
+	golang.org/x/text v0.28.0
+	golang.org/x/tools v0.36.0
 )
 
 require (
@@ -27,8 +28,8 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/sandertv/go-raknet v1.15.1-0.20260112202637-beca0b10c217 // indirect
-	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.28.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
