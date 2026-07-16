@@ -26,6 +26,8 @@ var traitLookup = map[string][]any{
 	},
 }
 
+const maxCustomBlockStates = 1 << 16
+
 // NewCustomBlockRegistry returns an independent registry with default block runtime IDs preserved and custom block
 // states appended after the default registry.
 func NewCustomBlockRegistry(entries []protocol.BlockEntry) (BlockRegistry, error) {
@@ -39,6 +41,7 @@ func NewCustomBlockRegistry(entries []protocol.BlockEntry) (BlockRegistry, error
 
 func addCustomBlocks(registry *BasicBlockRegistry, entries []protocol.BlockEntry) error {
 	scratch := make([]byte, 0, 0xff)
+	totalStates := 0
 	for _, entry := range entries {
 		if namespace, _, _ := strings.Cut(entry.Name, ":"); namespace == "minecraft" {
 			continue
@@ -48,6 +51,14 @@ func addCustomBlocks(registry *BasicBlockRegistry, entries []protocol.BlockEntry
 		if err != nil {
 			return fmt.Errorf("custom block %s: %w", entry.Name, err)
 		}
+		stateCount := 1
+		for _, values := range propertyValues {
+			if stateCount > (maxCustomBlockStates-totalStates)/len(values) {
+				return fmt.Errorf("custom block states exceed limit of %d", maxCustomBlockStates)
+			}
+			stateCount *= len(values)
+		}
+		totalStates += stateCount
 
 		err = forEachCustomBlockState(propertyNames, propertyValues, func(properties map[string]any) error {
 			state := BlockState{Name: entry.Name, Properties: properties}

@@ -283,7 +283,7 @@ func (br *BasicBlockRegistry) addCustomBlockState(s BlockState, scratch []byte) 
 		br.bitSize = bits.Len64(uint64(len(br.blocks)))
 		br.rebuildBlockHashesLocked()
 	}
-	br.blockInfos = append(br.blockInfos, defaultUnknownBlockInfo())
+	br.blockInfos = append(br.blockInfos, blockInfoFor(br.blocks[rid]))
 
 	br.networkhashToRids[netHash] = rid
 	br.ridsToNetworkhash = append(br.ridsToNetworkhash, netHash)
@@ -303,6 +303,29 @@ func (br *BasicBlockRegistry) rebuildBlockHashesLocked() {
 func defaultUnknownBlockInfo() blockInfo {
 	var info blockInfo
 	info.setLightFilter(15)
+	return info
+}
+
+func blockInfoFor(b Block) blockInfo {
+	info := defaultUnknownBlockInfo()
+	if diffuser, ok := b.(lightDiffuser); ok {
+		info.setLightFilter(diffuser.LightDiffusionLevel())
+	}
+	if emitter, ok := b.(lightEmitter); ok {
+		info.setLight(emitter.LightEmissionLevel())
+	}
+	if _, ok := b.(NBTer); ok {
+		info.set(blockFlagNBT)
+	}
+	if _, ok := b.(RandomTicker); ok {
+		info.set(blockFlagRandomTick)
+	}
+	if _, ok := b.(Liquid); ok {
+		info.set(blockFlagLiquid)
+	}
+	if _, ok := b.(LiquidDisplacer); ok {
+		info.set(blockFlagLiquidDisplacing)
+	}
 	return info
 }
 
@@ -425,27 +448,7 @@ func (br *BasicBlockRegistry) Finalize() {
 		}
 		br.stateRuntimeIDs[h] = rid
 
-		info := defaultUnknownBlockInfo()
-		// Default to fully opaque. Blocks that implement lightDiffuser may override this (e.g., air -> 0, leaves -> 1-14).
-		if diffuser, ok := b.(lightDiffuser); ok {
-			info.setLightFilter(diffuser.LightDiffusionLevel())
-		}
-		if emitter, ok := b.(lightEmitter); ok {
-			info.setLight(emitter.LightEmissionLevel())
-		}
-		if _, ok := b.(NBTer); ok {
-			info.set(blockFlagNBT)
-		}
-		if _, ok := b.(RandomTicker); ok {
-			info.set(blockFlagRandomTick)
-		}
-		if _, ok := b.(Liquid); ok {
-			info.set(blockFlagLiquid)
-		}
-		if _, ok := b.(LiquidDisplacer); ok {
-			info.set(blockFlagLiquidDisplacing)
-		}
-		br.blockInfos[rid] = info
+		br.blockInfos[rid] = blockInfoFor(b)
 
 		if _, hash := b.Hash(); hash != math.MaxUint64 {
 			h := int64(br.BlockHash(b))
