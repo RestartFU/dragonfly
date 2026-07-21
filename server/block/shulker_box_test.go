@@ -16,6 +16,7 @@ func TestShulkerBoxItemsRegistered(t *testing.T) {
 		wantItemName string
 		wantBlock    string
 	}{
+		{name: "minecraft:shulker_box", wantItemName: "minecraft:shulker_box", wantBlock: "minecraft:undyed_shulker_box"},
 		{name: "minecraft:undyed_shulker_box", wantItemName: "minecraft:undyed_shulker_box", wantBlock: "minecraft:undyed_shulker_box"},
 		{name: "minecraft:white_shulker_box", wantItemName: "minecraft:white_shulker_box", wantBlock: "minecraft:white_shulker_box"},
 		{name: "minecraft:light_gray_shulker_box", wantItemName: "minecraft:light_gray_shulker_box", wantBlock: "minecraft:light_gray_shulker_box"},
@@ -30,9 +31,12 @@ func TestShulkerBoxItemsRegistered(t *testing.T) {
 			}
 
 			var box ShulkerBox
-			if v, ok := it.(ShulkerBox); ok {
+			switch v := it.(type) {
+			case ShulkerBox:
 				box = v
-			} else {
+			case baseShulkerBoxItem:
+				box = v.ShulkerBox
+			default:
 				t.Fatalf("item %q resolved to %T, want shulker box item", tt.name, it)
 			}
 
@@ -52,7 +56,8 @@ func TestShulkerBoxNBTRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	box := NewShulkerBox()
-	box.Colour = item.NewOptionalColour(item.ColourBlue())
+	box.Dyed = true
+	box.Colour = item.ColourBlue()
 	box.CustomName = "stash"
 	box.Facing = cube.FaceNorth
 	if err := box.inventory.SetItem(0, item.NewStack(item.Bread{}, 3)); err != nil {
@@ -60,8 +65,11 @@ func TestShulkerBoxNBTRoundTrip(t *testing.T) {
 	}
 
 	decoded := box.DecodeNBT(box.EncodeNBT()).(ShulkerBox)
-	if decoded.Colour != item.NewOptionalColour(item.ColourBlue()) {
-		t.Fatalf("decoded colour = %v, want %v", decoded.Colour, item.NewOptionalColour(item.ColourBlue()))
+	if !decoded.Dyed {
+		t.Fatal("decoded box unexpectedly undyed")
+	}
+	if decoded.Colour != item.ColourBlue() {
+		t.Fatalf("decoded colour = %v, want %v", decoded.Colour, item.ColourBlue())
 	}
 	if decoded.CustomName != "stash" {
 		t.Fatalf("decoded custom name = %q, want %q", decoded.CustomName, "stash")
@@ -83,5 +91,16 @@ func TestShulkerBoxNBTRoundTrip(t *testing.T) {
 	name, _ := stack.Item().EncodeItem()
 	if name != "minecraft:bread" {
 		t.Fatalf("decoded item = %q, want %q", name, "minecraft:bread")
+	}
+}
+
+func TestShulkerBoxItemAliasDecodeNBTPreservesAlias(t *testing.T) {
+	t.Parallel()
+
+	box := baseShulkerBoxItem{}
+	decoded := box.DecodeNBT(map[string]any{}).(baseShulkerBoxItem)
+	name, _ := decoded.EncodeItem()
+	if name != "minecraft:shulker_box" {
+		t.Fatalf("decoded alias item name = %q, want %q", name, "minecraft:shulker_box")
 	}
 }

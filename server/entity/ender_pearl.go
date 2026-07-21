@@ -34,11 +34,7 @@ type teleporter interface {
 
 // teleport teleports the owner of an Ent to a trace.Result's position.
 func teleport(e *Ent, tx *world.Tx, target trace.Result) {
-	behaviour := e.Behaviour().(*ProjectileBehaviour)
-	if behaviour.PortalTravel() {
-		return
-	}
-	owner, _ := behaviour.Owner().Entity(tx)
+	owner, _ := e.Behaviour().(*ProjectileBehaviour).Owner().Entity(tx)
 	if user, ok := owner.(teleporter); ok {
 		tx.PlaySound(user.Position(), sound.Teleport{})
 		user.Teleport(target.Position())

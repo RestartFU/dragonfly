@@ -17,12 +17,6 @@ func encodeWallBlock(block world.Block) string {
 		}
 	case Bricks:
 		return "brick"
-	case Cinnabar:
-		if !block.Chiseled {
-			return "cinnabar"
-		}
-	case CinnabarBricks:
-		return "cinnabar_brick"
 	case Cobblestone:
 		if block.Mossy {
 			return "mossy_cobblestone"
@@ -64,10 +58,6 @@ func encodeWallBlock(block world.Block) string {
 		if !block.Cracked {
 			return "polished_blackstone_brick"
 		}
-	case PolishedCinnabar:
-		return "polished_cinnabar"
-	case PolishedSulfur:
-		return "polished_sulfur"
 	case PolishedTuff:
 		return "polished_tuff"
 	case Prismarine:
@@ -89,12 +79,6 @@ func encodeWallBlock(block world.Block) string {
 		} else if block.Type == MossyStoneBricks() {
 			return "mossy_stone_brick"
 		}
-	case Sulfur:
-		if !block.Chiseled {
-			return "sulfur"
-		}
-	case SulfurBricks:
-		return "sulfur_brick"
 	case Tuff:
 		if !block.Chiseled {
 			return "tuff"
@@ -114,8 +98,6 @@ func WallBlocks() []world.Block {
 		Blackstone{Type: PolishedBlackstone()},
 		Blackstone{},
 		Bricks{},
-		Cinnabar{},
-		CinnabarBricks{},
 		Cobblestone{Mossy: true},
 		Cobblestone{},
 		DeepslateBricks{},
@@ -129,8 +111,6 @@ func WallBlocks() []world.Block {
 		NetherBricks{Type: RedNetherBricks()},
 		NetherBricks{},
 		PolishedBlackstoneBrick{},
-		PolishedCinnabar{},
-		PolishedSulfur{},
 		PolishedTuff{},
 		Prismarine{},
 		ResinBricks{},
@@ -138,8 +118,6 @@ func WallBlocks() []world.Block {
 		Sandstone{},
 		StoneBricks{Type: MossyStoneBricks()},
 		StoneBricks{},
-		Sulfur{},
-		SulfurBricks{},
 		Tuff{},
 		TuffBricks{},
 	}

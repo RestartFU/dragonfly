@@ -98,24 +98,16 @@ func (conf ProjectileBehaviourConfig) New() *ProjectileBehaviour {
 	if conf.ParticleCount == 0 && conf.Particle != nil {
 		conf.ParticleCount = 1
 	}
-	return &ProjectileBehaviour{
-		BaseBehaviour: NewBaseBehaviour(),
-		conf:          conf,
-		collided:      conf.CollisionPosition != cube.Pos{},
-		collisionPos:  conf.CollisionPosition,
-		mc: &MovementComputer{
-			Gravity:           conf.Gravity,
-			Drag:              conf.Drag,
-			DragBeforeGravity: true,
-		},
-	}
+	return &ProjectileBehaviour{conf: conf, collided: conf.CollisionPosition != cube.Pos{}, collisionPos: conf.CollisionPosition, mc: &MovementComputer{
+		Gravity:           conf.Gravity,
+		Drag:              conf.Drag,
+		DragBeforeGravity: true,
+	}}
 }
 
 // ProjectileBehaviour implements the behaviour of projectiles. Its specifics
 // may be configured using ProjectileBehaviourConfig.
 type ProjectileBehaviour struct {
-	BaseBehaviour
-
 	conf        ProjectileBehaviourConfig
 	mc          *MovementComputer
 	ageCollided int
@@ -125,7 +117,6 @@ type ProjectileBehaviour struct {
 	collided     bool
 
 	collidedEntities []*world.EntityHandle
-	portalTravel     bool
 }
 
 // Owner returns the owner of the projectile.
@@ -151,16 +142,6 @@ func (lt *ProjectileBehaviour) Critical() bool {
 	return lt.conf.Critical && !lt.collided
 }
 
-// HandlePortalTravel records that this projectile has travelled between dimensions through a portal.
-func (lt *ProjectileBehaviour) HandlePortalTravel(world.Dimension, world.Dimension) {
-	lt.portalTravel = true
-}
-
-// PortalTravel reports whether this projectile has travelled between dimensions through a portal.
-func (lt *ProjectileBehaviour) PortalTravel() bool {
-	return lt.portalTravel
-}
-
 // Tick runs the tick-based behaviour of a ProjectileBehaviour and returns the
 // Movement within the tick. Tick handles the movement, collision and hitting
 // of a projectile.
@@ -178,7 +159,7 @@ func (lt *ProjectileBehaviour) Tick(e *Ent, tx *world.Tx) *Movement {
 	}
 	vel := e.Velocity()
 	m, result := lt.tickMovement(e, tx)
-	e.data.Pos, e.data.Vel, e.data.Rot = m.pos, m.vel, m.rot
+	e.data.Pos, e.data.Vel = m.pos, m.vel
 
 	lt.collisionPos, lt.collided, lt.ageCollided = cube.Pos{}, false, 0
 
@@ -280,7 +261,6 @@ func (lt *ProjectileBehaviour) hitBlockSurviving(e *Ent, r trace.BlockResult, m 
 		lt.collisionPos, lt.collided = r.BlockPosition(), true
 
 		for _, v := range tx.Viewers(m.pos) {
-			v.ViewEntityTeleport(e, m.pos)
 			v.ViewEntityAction(e, ArrowShakeAction{Duration: time.Millisecond * 350})
 			v.ViewEntityState(e)
 		}

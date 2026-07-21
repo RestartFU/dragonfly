@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/event"
 	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/item/potion"
 	"github.com/df-mc/dragonfly/server/world"
@@ -125,7 +126,7 @@ func (w Water) ScheduledTick(pos cube.Pos, tx *world.Tx, _ *rand.Rand) {
 				// Only form a new source block if there either is no water below this block, or if the water
 				// below this is not falling (full source block).
 				res := Water{Depth: 8, Still: true}
-				ctx := tx.Event()
+				ctx := event.C(tx)
 				if tx.World().Handler().HandleLiquidFlow(ctx, pos, pos, res, w); ctx.Cancelled() {
 					return
 				}
@@ -157,7 +158,7 @@ func (w Water) Harden(pos cube.Pos, tx *world.Tx, flownIntoBy *cube.Pos) bool {
 		return false
 	}
 	if lava, ok := tx.Block(pos.Side(cube.FaceUp)).(Lava); ok {
-		ctx := tx.Event()
+		ctx := event.C(tx)
 		if tx.World().Handler().HandleLiquidHarden(ctx, pos, w, lava, Stone{}); ctx.Cancelled() {
 			return false
 		}
@@ -165,7 +166,7 @@ func (w Water) Harden(pos cube.Pos, tx *world.Tx, flownIntoBy *cube.Pos) bool {
 		tx.PlaySound(pos.Vec3Centre(), sound.Fizz{})
 		return true
 	} else if lava, ok := tx.Block(*flownIntoBy).(Lava); ok {
-		ctx := tx.Event()
+		ctx := event.C(tx)
 		if tx.World().Handler().HandleLiquidHarden(ctx, pos, w, lava, Cobblestone{}); ctx.Cancelled() {
 			return false
 		}

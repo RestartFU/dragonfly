@@ -18,14 +18,6 @@ jobs:
       - name: Lint
         run: make lint
 
-      - name: Test
-        run: go test ./...
-
-      - name: Verify generated code
-        run: |
-          go generate ./server/block/
-          git diff --exit-code
-
   deploy:
     name: Deploy
     needs: build

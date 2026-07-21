@@ -28,7 +28,9 @@ func (GoatHorn) Cooldown() time.Duration {
 // Use ...
 func (g GoatHorn) Use(tx *world.Tx, user User, _ *UseContext) bool {
 	tx.PlaySound(user.Position(), sound.GoatHorn{Horn: g.Type})
-	user.H().DoAfter(time.Second, g.releaseItem)
+	time.AfterFunc(time.Second, func() {
+		user.H().ExecWorld(g.releaseItem)
+	})
 	return true
 }
 
