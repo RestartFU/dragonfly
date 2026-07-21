@@ -206,9 +206,9 @@ const (
 	hashStonecutter
 	hashString
 	hashSugarCane
-	hashSweetBerryBush
 	hashSulfur
 	hashSulfurBricks
+	hashSweetBerryBush
 	hashTNT
 	hashTerracotta
 	hashTorch
@@ -1040,16 +1040,16 @@ func (c SugarCane) Hash() (uint64, uint64) {
 	return hashSugarCane, uint64(c.Age)
 }
 
-func (s SweetBerryBush) Hash() (uint64, uint64) {
-	return hashSweetBerryBush, uint64(s.Age)
-}
-
 func (s Sulfur) Hash() (uint64, uint64) {
 	return hashSulfur, uint64(boolByte(s.Chiseled))
 }
 
 func (SulfurBricks) Hash() (uint64, uint64) {
 	return hashSulfurBricks, 0
+}
+
+func (s SweetBerryBush) Hash() (uint64, uint64) {
+	return hashSweetBerryBush, uint64(s.Age)
 }
 
 func (TNT) Hash() (uint64, uint64) {
