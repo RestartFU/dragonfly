@@ -62,6 +62,39 @@ func TestAddCustomBlocksPreservesVanillaRuntimeIDs(t *testing.T) {
 	}
 }
 
+func TestAddCustomBlocksAcceptsTypedEnumSlices(t *testing.T) {
+	DefaultBlockRegistry.Finalize()
+	registry := DefaultBlockRegistry.Clone()
+
+	oldCount := registry.BlockCount()
+	entry := protocol.BlockEntry{
+		Name: "dragonfly:typed_enum_block",
+		Properties: map[string]any{
+			"properties": []any{
+				map[string]any{
+					"name": "dragonfly:toggled",
+					"enum": []uint8{0, 1},
+				},
+				map[string]any{
+					"name": "dragonfly:variant",
+					"enum": []string{"a", "b", "c"},
+				},
+			},
+		},
+	}
+	if err := AddCustomBlocks(registry, []protocol.BlockEntry{entry}); err != nil {
+		t.Fatalf("AddCustomBlocks() error = %v", err)
+	}
+	if got, want := registry.BlockCount(), oldCount+6; got != want {
+		t.Fatalf("BlockCount() = %d, want %d", got, want)
+	}
+	if _, ok := registry.StateToRuntimeID("dragonfly:typed_enum_block", map[string]any{
+		"dragonfly:toggled": uint8(1), "dragonfly:variant": "b",
+	}); !ok {
+		t.Fatalf("StateToRuntimeID() ok = false, want true (enum values must keep their original type)")
+	}
+}
+
 func TestAddCustomBlocksSkipsDuplicateStates(t *testing.T) {
 	DefaultBlockRegistry.Finalize()
 	registry := DefaultBlockRegistry.Clone()

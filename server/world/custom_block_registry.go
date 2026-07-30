@@ -104,9 +104,9 @@ func customBlockPropertySpace(entry protocol.BlockEntry) ([]string, [][]any, err
 		if !ok {
 			return nil, nil, fmt.Errorf("expected property name to be string, got %T", v["name"])
 		}
-		enum, ok := v["enum"].([]any)
+		enum, ok := customBlockEnumValues(v["enum"])
 		if !ok {
-			return nil, nil, fmt.Errorf("expected property %s enum to be []any, got %T", name, v["enum"])
+			return nil, nil, fmt.Errorf("expected property %s enum to be a list, got %T", name, v["enum"])
 		}
 		if len(enum) == 0 {
 			return nil, nil, fmt.Errorf("expected property %s enum to contain at least one value", name)
@@ -152,6 +152,39 @@ func customBlockPropertySpace(entry protocol.BlockEntry) ([]string, [][]any, err
 	}
 
 	return propertyNames, propertyValues, nil
+}
+
+// customBlockEnumValues coerces a property enum to []any. NBT decoders produce typed
+// slices for homogeneous lists (Geyser encodes boolean enums as []uint8), so scalar
+// slice types are widened element-wise; the element values keep their original type.
+func customBlockEnumValues(value any) ([]any, bool) {
+	switch value := value.(type) {
+	case []any:
+		return value, true
+	case []uint8:
+		return anySlice(value), true
+	case []int32:
+		return anySlice(value), true
+	case []int64:
+		return anySlice(value), true
+	case []string:
+		return anySlice(value), true
+	case []float32:
+		return anySlice(value), true
+	case []float64:
+		return anySlice(value), true
+	default:
+		return nil, false
+	}
+}
+
+// anySlice widens a typed slice to []any.
+func anySlice[T any](values []T) []any {
+	out := make([]any, len(values))
+	for i, v := range values {
+		out[i] = v
+	}
+	return out
 }
 
 func customBlockMaps(value any, field string) ([]map[string]any, error) {
