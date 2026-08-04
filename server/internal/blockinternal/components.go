@@ -47,6 +47,9 @@ func Components(identifier string, b world.CustomBlock, blockID int32) map[strin
 	if item, ok := b.(world.CustomItem); ok {
 		builder.SetMenuCategory(item.Category())
 	}
+	if tagged, ok := b.(block.Tagged); ok {
+		builder.SetTags(tagged.Tags()...)
+	}
 	return builder.Construct()
 }
 

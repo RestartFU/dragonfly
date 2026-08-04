@@ -15,6 +15,7 @@ type ComponentBuilder struct {
 
 	identifier   string
 	menuCategory category.Category
+	tags         []string
 }
 
 // NewComponentBuilder returns a new component builder with the provided block data, using the provided components map
@@ -31,6 +32,11 @@ func NewComponentBuilder(identifier string, components map[string]any, blockID i
 		identifier:   identifier,
 		menuCategory: category.Construction(),
 	}
+}
+
+// SetTags sets the vanilla block tags of the block, replacing any previously set.
+func (builder *ComponentBuilder) SetTags(tags ...string) {
+	builder.tags = slices.Clone(tags)
 }
 
 // AddProperty adds the provided block property to the builder.
@@ -87,6 +93,13 @@ func (builder *ComponentBuilder) Construct() map[string]any {
 	}
 	if len(properties) > 0 {
 		result["properties"] = properties
+	}
+	if len(builder.tags) > 0 {
+		tags := make([]any, 0, len(builder.tags))
+		for _, tag := range builder.tags {
+			tags = append(tags, tag)
+		}
+		result["blockTags"] = tags
 	}
 
 	permutations := maps.Clone(builder.permutations)
