@@ -402,6 +402,27 @@ func (srv *Server) makeBlockEntries() {
 	}
 }
 
+// CustomItemEntry creates the protocol entry sent to a client for it. The runtimeID must
+// be unique among the item entries in the same registry.
+//
+// Items that are also custom blocks are placed by the block they encode, so they carry no
+// item components of their own and use ItemEntryVersionNone.
+func CustomItemEntry(it world.CustomItem, runtimeID int16) protocol.ItemEntry {
+	name, _ := it.EncodeItem()
+	_, isCustomBlock := it.(world.CustomBlock)
+	version := int32(protocol.ItemEntryVersionDataDriven)
+	if isCustomBlock {
+		version = protocol.ItemEntryVersionNone
+	}
+	return protocol.ItemEntry{
+		Name:           name,
+		ComponentBased: !isCustomBlock,
+		RuntimeID:      runtimeID,
+		Version:        version,
+		Data:           iteminternal.Components(it),
+	}
+}
+
 // CustomBlockEntry creates the protocol entry sent to a client for b. The
 // blockID must be unique among the custom block entries in the same palette.
 func CustomBlockEntry(b world.CustomBlock, blockID int32) protocol.BlockEntry {
@@ -417,23 +438,11 @@ func CustomBlockEntry(b world.CustomBlock, blockID int32) protocol.BlockEntry {
 // at startup
 func (srv *Server) makeItemComponents() {
 	custom := world.CustomItems()
-	srv.customItems = make([]protocol.ItemEntry, len(custom))
+	srv.customItems = make([]protocol.ItemEntry, 0, len(custom))
 
 	for _, it := range custom {
-		name, _ := it.EncodeItem()
 		rid, _, _ := world.ItemRuntimeID(it)
-		_, isCustomBlock := it.(world.CustomBlock)
-		var entryVersion int32 = protocol.ItemEntryVersionDataDriven
-		if isCustomBlock {
-			entryVersion = protocol.ItemEntryVersionNone
-		}
-		srv.customItems = append(srv.customItems, protocol.ItemEntry{
-			Name:           name,
-			ComponentBased: !isCustomBlock,
-			RuntimeID:      int16(rid),
-			Version:        entryVersion,
-			Data:           iteminternal.Components(it),
-		})
+		srv.customItems = append(srv.customItems, CustomItemEntry(it, int16(rid)))
 	}
 }
 
