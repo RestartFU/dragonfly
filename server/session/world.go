@@ -910,6 +910,14 @@ func (s *Session) playSound(pos mgl64.Vec3, t world.Sound, disableRelative bool)
 		return
 	case sound.DecoratedPotInsertFailed:
 		pk.SoundType = packet.SoundEventDecoratedPotInsertFail
+	case sound.Custom:
+		s.writePacket(&packet.PlaySound{
+			SoundName: so.Name,
+			Position:  vec64To32(pos),
+			Volume:    float32(so.Volume),
+			Pitch:     float32(so.Pitch),
+		})
+		return
 	case sound.LightningExplode:
 		s.writePacket(&packet.PlaySound{
 			SoundName: "ambient.weather.lightning.impact",
@@ -1131,37 +1139,26 @@ func (s *Session) entityMetadata(e world.Entity) protocol.EntityMetadata {
 	if s.viewLayer == nil {
 		return metadata
 	}
-	if nt, ok := s.viewLayer.NameTag(e); ok {
-		metadata[protocol.EntityDataKeyName] = nt
-		if nt != "" {
-			metadata[protocol.EntityDataKeyAlwaysShowNameTag] = uint8(1)
-			if !metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagAlwaysShowName) {
-				metadata.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagAlwaysShowName)
-			}
-			if !metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagShowName) {
-				metadata.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagShowName)
-			}
-		} else {
-			metadata[protocol.EntityDataKeyAlwaysShowNameTag] = uint8(0)
-			if metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagAlwaysShowName) {
-				metadata.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagAlwaysShowName)
-			}
-			if metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagShowName) {
-				metadata.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagShowName)
-			}
+	nt, ntSet := s.viewLayer.NameTag(e)
+	as, asSet := s.viewLayer.AlwaysShowNameTag(e)
+	if ntSet || asSet {
+		nameTag, alwaysShow, _ := nameTagState(e)
+		if ntSet {
+			nameTag = nt
 		}
+		if asSet {
+			alwaysShow = as
+		}
+		writeNameTagMetadata(metadata, nameTag, alwaysShow)
 	}
 	if st, ok := s.viewLayer.ScoreTag(e); ok {
 		metadata[protocol.EntityDataKeyScore] = st
 	}
 	if visibility := s.viewLayer.Visibility(e); visibility.EnforceVisibility() {
-		invisibleFlag := metadata.Flag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagInvisible)
-		shouldForceVisible := visibility == world.EnforceVisible() && invisibleFlag
-		shouldForceInvisible := visibility == world.EnforceInvisible() && !invisibleFlag
-		if shouldForceVisible {
-			metadata.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagInvisible)
-		} else if shouldForceInvisible {
+		if visibility == world.EnforceInvisible() {
 			metadata.SetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagInvisible)
+		} else {
+			metadata.UnsetFlag(protocol.EntityDataKeyFlags, protocol.EntityDataFlagInvisible)
 		}
 	}
 	return metadata
