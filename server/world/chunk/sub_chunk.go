@@ -162,3 +162,10 @@ func (sub *SubChunk) compact() {
 	}
 	sub.storages = newStorages
 }
+
+// Compact cleans the garbage from all block storages that sub_chunk contains, so that they
+// may be cleanly written to a database. Callers holding sub-chunks decoded from the network
+// use it before caching them, so a palette entry no cell references is not kept alive.
+func (sub *SubChunk) Compact() {
+	sub.compact()
+}
