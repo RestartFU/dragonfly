@@ -181,34 +181,43 @@ func (s *Session) craftingOffset() uint32 {
 }
 
 // matchingStacks returns true if the two stacks are the same in a crafting scenario.
-func matchingStacks(has, expected recipe.Item) bool {
+// MatchingStacks reports whether has satisfies expected. ok is false when either side is
+// not a recipe item type, which a caller decoding recipes from an untrusted source has to
+// handle rather than read as a mismatch.
+func MatchingStacks(has, expected recipe.Item) (match, ok bool) {
 	switch expected := expected.(type) {
 	case item.Stack:
 		switch has := has.(type) {
 		case recipe.ItemTag:
 			name, _ := expected.Item().EncodeItem()
-			return has.Contains(name)
+			return has.Contains(name), true
 		case item.Stack:
 			_, variants := expected.Value("variants")
 			if !variants {
-				return has.Comparable(expected)
+				return has.Comparable(expected), true
 			}
 			nameOne, _ := has.Item().EncodeItem()
 			nameTwo, _ := expected.Item().EncodeItem()
-			return nameOne == nameTwo
+			return nameOne == nameTwo, true
 		}
-		panic(fmt.Errorf("client has unexpected recipe item %T", has))
 	case recipe.ItemTag:
 		switch has := has.(type) {
 		case item.Stack:
 			name, _ := has.Item().EncodeItem()
-			return expected.Contains(name)
+			return expected.Contains(name), true
 		case recipe.ItemTag:
-			return has.Tag() == expected.Tag()
+			return has.Tag() == expected.Tag(), true
 		}
-		panic(fmt.Errorf("client has unexpected recipe item %T", has))
 	}
-	panic(fmt.Errorf("tried to match with unexpected recipe item %T", expected))
+	return false, false
+}
+
+func matchingStacks(has, expected recipe.Item) bool {
+	match, ok := MatchingStacks(has, expected)
+	if !ok {
+		panic(fmt.Errorf("unexpected recipe item pair %T and %T", has, expected))
+	}
+	return match
 }
 
 // repeatStacks multiplies the count of all item stacks provided by the number of repetitions provided. Item
