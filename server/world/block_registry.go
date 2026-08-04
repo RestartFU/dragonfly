@@ -411,7 +411,7 @@ func (br *BasicBlockRegistry) Finalize() {
 		} else {
 			nameTwo, _ = br.blocks[j].EncodeBlock()
 		}
-		return fnv1.HashString64(nameOne) < fnv1.HashString64(nameTwo)
+		return NetworkBlockHash(nameOne) < NetworkBlockHash(nameTwo)
 	})
 
 	br.blockInfos = make([]blockInfo, len(br.blocks))
@@ -595,4 +595,10 @@ func (br *BasicBlockRegistry) Air() Block {
 		panic("BlockRegistry.Air: air runtime ID out of range")
 	}
 	return br.blocks[br.airRID]
+}
+
+// NetworkBlockHash returns the key a client sorts its block palette by, making a block's
+// runtime ID its index in that ordering. Finalize sorts by it too, so the two agree.
+func NetworkBlockHash(name string) uint64 {
+	return fnv1.HashString64(name)
 }
