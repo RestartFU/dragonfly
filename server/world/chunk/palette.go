@@ -90,6 +90,16 @@ func (palette *Palette) indexSlow(runtimeID uint32) int16 {
 
 // Value returns the value in the Palette at a specific index.
 func (palette *Palette) Value(i uint16) uint32 {
+	if int(i) >= len(palette.values) {
+		// A storage decoded from an untrusted source can pack an index its palette does not
+		// cover: the index width is fixed by the storage, not by how many entries were sent.
+		// Resolve it to the first entry rather than panicking here, far from the decode that
+		// accepted it.
+		if len(palette.values) == 0 {
+			return 0
+		}
+		return palette.values[0]
+	}
 	return palette.values[i]
 }
 

@@ -175,8 +175,8 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		if err := protocol.Varint32(buf, &paletteCount); err != nil {
 			return nil, fmt.Errorf("error reading palette entry count: %w", err)
 		}
-		if paletteCount <= 0 {
-			return nil, fmt.Errorf("invalid palette entry count %v", paletteCount)
+		if err := validatePaletteCount(paletteCount, blockSize); err != nil {
+			return nil, err
 		}
 	}
 
@@ -188,6 +188,19 @@ func (networkEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, _
 		palette.values[i] = uint32(temp)
 	}
 	return palette, nil
+}
+
+// validatePaletteCount checks a palette entry count read off the wire before it is used to
+// size an allocation. A storage's index width caps how many entries it can address, so a
+// larger count cannot describe a real storage and is rejected rather than allocated.
+func validatePaletteCount(count int32, blockSize paletteSize) error {
+	if count <= 0 {
+		return fmt.Errorf("invalid palette entry count %v", count)
+	}
+	if capacity := int32(1) << blockSize; count > capacity {
+		return fmt.Errorf("palette entry count %v exceeds the %v entries a %v-bit storage can address", count, capacity, blockSize)
+	}
+	return nil
 }
 
 // networkPersistentEncoding implements the Chunk encoding for sending over network with persistent storage.
@@ -209,12 +222,11 @@ func (networkPersistentEncoding) encodePalette(buf *bytes.Buffer, p *Palette, pe
 func (networkPersistentEncoding) decodePalette(buf *bytes.Buffer, blockSize paletteSize, pe paletteEncoding) (*Palette, error) {
 	var paletteCount int32 = 1
 	if blockSize != 0 {
-		err := protocol.Varint32(buf, &paletteCount)
-		if err != nil {
-			panic(err)
+		if err := protocol.Varint32(buf, &paletteCount); err != nil {
+			return nil, fmt.Errorf("error reading palette entry count: %w", err)
 		}
-		if paletteCount <= 0 {
-			return nil, fmt.Errorf("invalid palette entry count %v", paletteCount)
+		if err := validatePaletteCount(paletteCount, blockSize); err != nil {
+			return nil, err
 		}
 	}
 
