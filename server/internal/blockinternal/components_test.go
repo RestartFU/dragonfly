@@ -3,7 +3,9 @@ package blockinternal
 import (
 	"testing"
 
+	"github.com/df-mc/dragonfly/server/block"
 	"github.com/df-mc/dragonfly/server/block/customblock"
+	"github.com/df-mc/dragonfly/server/item"
 	"github.com/df-mc/dragonfly/server/world"
 )
 
@@ -31,6 +33,43 @@ func (untaggedBlock) Hash() (uint64, uint64)                { return 0, 0 }
 
 func (untaggedBlock) Properties() customblock.Properties {
 	return customblock.Properties{Cube: true}
+}
+
+// breakableBlock is a custom block with the hardness of stone, harvestable only with a
+// tool, so its bare-handed time is the hardness times a hundred ticks rather than thirty.
+type breakableBlock struct{}
+
+func (breakableBlock) EncodeBlock() (string, map[string]any) { return "test:breakable", nil }
+func (breakableBlock) Model() world.BlockModel               { return nil }
+func (breakableBlock) Hash() (uint64, uint64)                { return 0, 0 }
+
+func (breakableBlock) Properties() customblock.Properties {
+	return customblock.Properties{Cube: true}
+}
+
+func (breakableBlock) BreakInfo() block.BreakInfo {
+	return block.BreakInfo{
+		Hardness:    1.5,
+		Harvestable: func(item.Tool) bool { return false },
+		Effective:   func(item.Tool) bool { return false },
+		Drops:       func(item.Tool, []item.Enchantment) []item.Stack { return nil },
+	}
+}
+
+// The client reads the component as seconds to destroy, so sending the hardness through
+// makes every custom block break several times too fast.
+func TestComponents_DestructibleByMiningIsSeconds(t *testing.T) {
+	components := Components("test:breakable", breakableBlock{}, 10000)["components"].(map[string]any)
+
+	raw, ok := components["minecraft:destructible_by_mining"]
+	if !ok {
+		t.Fatal("breakable block has no destructible_by_mining component")
+	}
+	value := raw.(map[string]any)["value"].(float32)
+	// 1.5 hardness, unharvestable by hand: 1.5 * 100 ticks.
+	if value != 7.5 {
+		t.Fatalf("destructible_by_mining = %v, want 7.5 seconds (hardness is 1.5)", value)
+	}
 }
 
 func TestComponents_BlockTags(t *testing.T) {
