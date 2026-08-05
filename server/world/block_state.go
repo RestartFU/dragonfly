@@ -56,6 +56,33 @@ func (unknownBlock) Model() BlockModel {
 	return unknownModel{}
 }
 
+// Friction returns the vanilla friction of the block, so a block dragonfly has no type for
+// still slows or slips the way players expect. block.Frictional is matched structurally.
+func (b unknownBlock) Friction() float64 {
+	if p, ok := unknownBlockProps[b.Name]; ok {
+		return p.friction
+	}
+	return 0.6
+}
+
+// LightDiffusionLevel returns how much light the block filters. Without this every unknown
+// block is treated as fully opaque, which darkens anything behind glass or a fence.
+func (b unknownBlock) LightDiffusionLevel() uint8 {
+	if p, ok := unknownBlockProps[b.Name]; ok {
+		return p.dampening
+	}
+	return 15
+}
+
+// LightEmissionLevel returns the light the block gives off. Blocks whose emission depends on
+// their state report the resting value, since the state is not modelled.
+func (b unknownBlock) LightEmissionLevel() uint8 {
+	if p, ok := unknownBlockProps[b.Name]; ok {
+		return p.emission
+	}
+	return 0
+}
+
 // Hash ...
 func (b unknownBlock) Hash() (uint64, uint64) {
 	return 0, math.MaxUint64

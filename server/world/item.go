@@ -43,6 +43,10 @@ type VanillaItemEntry struct {
 	ComponentBased bool           `nbt:"component_based"`
 	Version        int32          `nbt:"version"`
 	Data           map[string]any `nbt:"data,omitempty"`
+	// MaxStackSize is the highest count a stack of the item may hold. It is not part of the
+	// runtime dictionary and is filled from vanilla data, so it is set even for items with
+	// no Go type.
+	MaxStackSize int `nbt:"-"`
 }
 
 // RegisterItem registers an item with the ID and meta passed. Once registered, items may be obtained from an
@@ -99,6 +103,10 @@ func init() {
 	for name, e := range vanillaItemEntries {
 		itemNamesToRuntimeIDs[name] = e.RuntimeID
 		itemRuntimeIDsToNames[e.RuntimeID] = name
+		if size, ok := vanillaStackSizes[name]; ok {
+			e.MaxStackSize = size
+			vanillaItemEntries[name] = e
+		}
 	}
 }
 
