@@ -62,28 +62,7 @@ func (s *Session) ViewSubChunks(centre world.SubChunkPos, offsets []protocol.Sub
 }
 
 func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *world.Column, transaction map[uint64]struct{}) protocol.SubChunkEntry {
-	chunkMap := col.HeightMap()
-	subMapType, subMap := byte(protocol.HeightMapDataHasData), make([]int8, 256)
-	higher, lower := true, true
-	for x := uint8(0); x < 16; x++ {
-		for z := uint8(0); z < 16; z++ {
-			y, i := chunkMap.At(x, z), (uint16(z)<<4)|uint16(x)
-			otherInd := col.SubIndex(y)
-			switch {
-			case otherInd > ind:
-				subMap[i], lower = 16, false
-			case otherInd < ind:
-				subMap[i], higher = -1, false
-			default:
-				subMap[i], lower, higher = int8(y-col.SubY(otherInd)), false, false
-			}
-		}
-	}
-	if higher {
-		subMapType, subMap = protocol.HeightMapDataTooHigh, nil
-	} else if lower {
-		subMapType, subMap = protocol.HeightMapDataTooLow, nil
-	}
+	subMapType, subMap := chunk.SubChunkHeightMap(col.Chunk, ind)
 
 	sub := col.Sub()[ind]
 	if sub.Empty() {
