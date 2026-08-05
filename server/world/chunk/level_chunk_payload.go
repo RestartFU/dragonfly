@@ -12,21 +12,7 @@ import (
 // EncodeLevelChunkPayload builds the RawPayload for a LevelChunk packet from
 // network-serialised chunk data and trailing block entity compounds.
 func EncodeLevelChunkPayload(data SerialisedData, blockEntities []BlockEntity) ([]byte, error) {
-	blockNBTs := make([]map[string]any, 0, len(blockEntities))
-	for _, blockEntity := range blockEntities {
-		if blockEntity.Data == nil {
-			continue
-		}
-		blockNBT := make(map[string]any, len(blockEntity.Data)+3)
-		for k, v := range blockEntity.Data {
-			blockNBT[k] = v
-		}
-		blockNBT["x"] = int32(blockEntity.Pos[0])
-		blockNBT["y"] = int32(blockEntity.Pos[1])
-		blockNBT["z"] = int32(blockEntity.Pos[2])
-		blockNBTs = append(blockNBTs, blockNBT)
-	}
-	return EncodeLevelChunkPayloadWithBlockNBTs(data, blockNBTs)
+	return EncodeLevelChunkPayloadWithBlockNBTs(data, blockEntityNBTs(blockEntities))
 }
 
 // EncodeLevelChunkPayloadFromMap builds the RawPayload for a LevelChunk packet
@@ -75,4 +61,38 @@ func EncodeLevelChunkPayloadWithBlockNBTs(data SerialisedData, blockNBTs []map[s
 		_, _ = buf.Write(staging.Bytes())
 	}
 	return append([]byte(nil), buf.Bytes()...), nil
+}
+
+// blockEntityNBTs copies each entity's data with its position injected, which is how the
+// client keys a block entity to the block it belongs to. Entities with no data are dropped.
+func blockEntityNBTs(blockEntities []BlockEntity) []map[string]any {
+	blockNBTs := make([]map[string]any, 0, len(blockEntities))
+	for _, blockEntity := range blockEntities {
+		if blockEntity.Data == nil {
+			continue
+		}
+		blockNBT := make(map[string]any, len(blockEntity.Data)+3)
+		for k, v := range blockEntity.Data {
+			blockNBT[k] = v
+		}
+		blockNBT["x"] = int32(blockEntity.Pos[0])
+		blockNBT["y"] = int32(blockEntity.Pos[1])
+		blockNBT["z"] = int32(blockEntity.Pos[2])
+		blockNBTs = append(blockNBTs, blockNBT)
+	}
+	return blockNBTs
+}
+
+// EncodeBlockEntities encodes entities as the network NBT that trails a sub-chunk payload,
+// each carrying its own position. A SubChunk entry only draws its block actors when their
+// compounds follow the sub-chunk data this way.
+func EncodeBlockEntities(blockEntities []BlockEntity) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	enc := nbt.NewEncoderWithEncoding(buf, nbt.NetworkLittleEndian)
+	for i, blockNBT := range blockEntityNBTs(blockEntities) {
+		if err := enc.Encode(blockNBT); err != nil {
+			return nil, fmt.Errorf("encode block entity %d at %v/%v/%v: %w", i, blockNBT["x"], blockNBT["y"], blockNBT["z"], err)
+		}
+	}
+	return buf.Bytes(), nil
 }

@@ -62,3 +62,28 @@ func TestEncodeLevelChunkPayloadWithBlockEntitiesReturnsEncodeError(t *testing.T
 		t.Fatalf("error = %q, want block entity context", err)
 	}
 }
+
+// The client only draws a sub-chunk's block actors when their compounds trail the payload
+// carrying their position.
+func TestEncodeBlockEntitiesCarriesPositions(t *testing.T) {
+	t.Parallel()
+
+	raw, err := chunk.EncodeBlockEntities([]chunk.BlockEntity{
+		{Pos: cube.Pos{3, 64, 5}, Data: map[string]any{"id": "Chest"}},
+		{Pos: cube.Pos{1, 2, 3}, Data: nil},
+	})
+	if err != nil {
+		t.Fatalf("EncodeBlockEntities() error = %v", err)
+	}
+	if len(raw) == 0 {
+		t.Fatal("encoded nothing")
+	}
+	if !strings.Contains(string(raw), "Chest") {
+		t.Error("encoded data does not carry the block entity id")
+	}
+	for _, axis := range []string{"x", "y", "z"} {
+		if !strings.Contains(string(raw), axis) {
+			t.Errorf("encoded data is missing the %q position key", axis)
+		}
+	}
+}

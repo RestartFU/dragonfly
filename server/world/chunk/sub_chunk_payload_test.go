@@ -65,3 +65,23 @@ func TestSubChunkHeightMap(t *testing.T) {
 		}
 	})
 }
+
+// Protocol 2168 constrains SubChunkCount to 0..64, so announcing with the old MaxUint32
+// sentinel makes the client reject the column before it requests any sub-chunk.
+func TestRequestModeLevelChunkUsesZeroCount(t *testing.T) {
+	world.DefaultBlockRegistry.Finalize()
+	t.Parallel()
+
+	ch := chunk.New(world.DefaultBlockRegistry, world.Overworld.Range())
+	count, limit := chunk.RequestModeLevelChunk(ch)
+	if count != 0 {
+		t.Errorf("SubChunkCount = %d, want 0", count)
+	}
+	got, ok := limit.Value()
+	if !ok {
+		t.Fatal("SubChunkLimit is unset, so the client requests nothing and the column stays empty")
+	}
+	if want := int32(ch.HighestFilledSubChunk()); got != want {
+		t.Errorf("SubChunkLimit = %d, want %d", got, want)
+	}
+}

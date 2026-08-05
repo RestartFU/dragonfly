@@ -34,3 +34,11 @@ func SubChunkHeightMap(c *Chunk, index int16) (byte, []int8) {
 	}
 	return protocol.HeightMapDataHasData, heightMap
 }
+
+// RequestModeLevelChunk returns the SubChunkCount and SubChunkLimit a LevelChunk carries to
+// announce a column without its terrain, which is what prompts the client to request it a
+// sub-chunk at a time. Protocol 2168 constrains SubChunkCount to 0..64, so the limit alone
+// marks request mode and the older protocol.SubChunkRequestMode* sentinels are rejected.
+func RequestModeLevelChunk(c *Chunk) (subChunkCount uint32, subChunkLimit protocol.Optional[int32]) {
+	return 0, protocol.Option(int32(c.HighestFilledSubChunk()))
+}

@@ -78,19 +78,20 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 
 	serialisedSubChunk := chunk.EncodeSubChunk(col.Chunk, chunk.NetworkEncoding, int(ind))
 
-	blockEntityBuf := bytes.NewBuffer(nil)
-	enc := nbt.NewEncoderWithEncoding(blockEntityBuf, nbt.NetworkLittleEndian)
+	entities := make([]chunk.BlockEntity, 0, len(col.BlockEntities))
 	for pos, b := range col.BlockEntities {
 		if n, ok := b.(world.NBTer); ok && col.SubIndex(int16(pos.Y())) == ind {
-			d := n.EncodeNBT()
-			d["x"], d["y"], d["z"] = int32(pos[0]), int32(pos[1]), int32(pos[2])
-			_ = enc.Encode(d)
+			entities = append(entities, chunk.BlockEntity{Pos: pos, Data: n.EncodeNBT()})
 		}
+	}
+	blockEntityData, err := chunk.EncodeBlockEntities(entities)
+	if err != nil {
+		s.conf.Log.Error("encode sub-chunk block entities", "ind", ind, "err", err)
 	}
 
 	entry := protocol.SubChunkEntry{
 		Result:              protocol.SubChunkResultSuccess,
-		RawPayload:          append(serialisedSubChunk, blockEntityBuf.Bytes()...),
+		RawPayload:          append(serialisedSubChunk, blockEntityData...),
 		HeightMapType:       subMapType,
 		HeightMapData:       subMap,
 		RenderHeightMapType: subMapType,
@@ -102,7 +103,7 @@ func (s *Session) subChunkEntry(offset protocol.SubChunkOffset, ind int16, col *
 			transaction[hash] = struct{}{}
 
 			entry.BlobHash = hash
-			entry.RawPayload = blockEntityBuf.Bytes()
+			entry.RawPayload = blockEntityData
 		}
 	}
 	return entry
@@ -120,11 +121,12 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 	if subChunkRequests {
 		biomes := chunk.EncodeBiomes(c, chunk.NetworkEncoding)
 		if hash := xxhash.Sum64(biomes); s.trackBlob(hash, biomes) {
+			count, limit := chunk.RequestModeLevelChunk(c)
 			s.writePacket(&packet.LevelChunk{
 				Dimension:     s.dimensionID(dim),
-				SubChunkCount: 0,
+				SubChunkCount: count,
 				Position:      protocol.ChunkPos(pos),
-				SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
+				SubChunkLimit: limit,
 				BlobHashes:    []uint64{hash},
 				RawPayload:    []byte{0},
 				CacheEnabled:  true,
@@ -181,11 +183,12 @@ func (s *Session) sendBlobHashes(pos world.ChunkPos, dim world.Dimension, c *chu
 // sendNetworkChunk sends a network encoded chunk to the client.
 func (s *Session) sendNetworkChunk(pos world.ChunkPos, dim world.Dimension, c *chunk.Chunk, blockEntities map[cube.Pos]world.Block) {
 	if subChunkRequests {
+		count, limit := chunk.RequestModeLevelChunk(c)
 		s.writePacket(&packet.LevelChunk{
 			Dimension:     s.dimensionID(dim),
-			SubChunkCount: 0,
+			SubChunkCount: count,
 			Position:      protocol.ChunkPos(pos),
-			SubChunkLimit: protocol.Option(int32(c.HighestFilledSubChunk())),
+			SubChunkLimit: limit,
 			RawPayload:    append(chunk.EncodeBiomes(c, chunk.NetworkEncoding), 0),
 		})
 		return
